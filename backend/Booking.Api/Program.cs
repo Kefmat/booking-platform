@@ -6,6 +6,8 @@ using Booking.Api.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Booking.Api.Domain;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -133,8 +135,7 @@ app.MapPost("/bookings", async (
     var overlap = await db.Bookings.AnyAsync(b =>
         b.ResourceId == req.ResourceId &&
         b.Status == "Created" &&
-        req.Start < b.End &&
-        req.End > b.Start
+        BookingRules.Overlapper(req.Start, req.End, b.Start, b.End)
     );
 
     if (overlap)
