@@ -1,166 +1,161 @@
-Booking Platform
+# Booking Platform
 
-Et fullstack bookingsystem bygget for å utforske praktisk backend-utvikling i .NET kombinert med en enkel React-frontend.
+A fullstack booking system built with **.NET 8 (Minimal API)** and
+**React (Vite + TypeScript)**.
 
-Prosjektet simulerer et ekte system hvor brukere kan logge inn og booke ressurser (f.eks. møterom), med regler for overlapp, autentisering og sporbarhet.
+This project is designed as a practical backend-focused portfolio
+project, with clean architecture, clear domain logic, authentication,
+and database integration.
 
-Dette er et lærings- og porteføljeprosjekt som utvikles steg for steg, med fokus på ryddig struktur og realistisk arkitektur.
+------------------------------------------------------------------------
 
+## Overview
 
-Funksjonalitet
+The system allows users to:
 
-API-et lar brukere:
+-   Log in using JWT-based authentication
+-   View available resources (e.g. meeting rooms)
+-   Create bookings within a time range
+-   Prevent overlapping bookings
+-   Track actions through audit logging
 
-Logge inn med JWT-autentisering
+The goal is to simulate a realistic backend system structure, not just a
+demo CRUD API.
 
-Hente tilgjengelige ressurser
+------------------------------------------------------------------------
 
-Opprette bookinger innenfor et tidsrom
+## Tech Stack
 
-Hindre dobbeltbooking (overlapp-sjekk)
+### Backend
 
-Logge handlinger for sporbarhet (audit trail)
+-   .NET 8 (Minimal API)
+-   Entity Framework Core
+-   PostgreSQL
+-   JWT Authentication
+-   Swagger / OpenAPI
+-   Docker (for database)
 
+### Frontend
 
-Frontend:
+-   React
+-   TypeScript
+-   Vite
 
-Logger inn bruker
+------------------------------------------------------------------------
 
-Lagrer JWT-token
+## Project Structure
 
-Henter beskyttede ressurser
+    booking-platform/
+    │
+    ├── backend/
+    │   └── Booking.Api/
+    │       ├── Data/
+    │       ├── Domain/
+    │       ├── Contracts/
+    │       └── Program.cs
+    │
+    ├── frontend/
+    │   └── booking-web/
+    │
+    └── docker-compose.yml
 
-Tester API-flyten fra UI
+### Folder Responsibilities
 
+-   **Data/** → EF Core entities and DbContext
+-   **Domain/** → Business rules (e.g., booking overlap logic)
+-   **Contracts/** → Request/response DTOs
+-   **Program.cs** → API setup and endpoint definitions
 
-Teknologi
-Backend
+Database models and API contracts are separated to allow future
+scalability.
 
-.NET 8 (Minimal API)
+------------------------------------------------------------------------
 
-Entity Framework Core
+## Running Locally
 
-PostgreSQL
+### 1. Start PostgreSQL (Docker)
 
-JWT (HS256)
-
-Swagger / OpenAPI
-
-Frontend
-
-React
-
-TypeScript
-
-Vite
-
-Infrastruktur
-
-Docker (PostgreSQL)
-
-GitHub Actions (CI)
-
-
-Arkitektur og struktur
-
-Backend er strukturert bevisst enkelt, men med tydelig separasjon av ansvar:
-
-backend/
- └── Booking.Api/
-     ├── Contracts/     -> Request/response-modeller
-     ├── Data/          -> EF Core entiteter + DbContext
-     ├── Domain/        -> Domenelogikk (f.eks. booking-regler)
-     ├── Migrations/    -> Database-migrasjoner
-     └── Program.cs     -> API-endepunkter og oppsett
-
-
-Designvalg
-
-API-kontrakter er skilt fra database-entiteter
-
-Domenelogikk (f.eks. overlapp-sjekk) er flyttet ut av endepunktet
-
-JWT beskytter sensitive endepunkter
-
-CORS er konfigurert for lokal utvikling
-
-Kjøre prosjektet lokalt
-Start database (Docker)
-
-Fra rotmappen:
-
+``` bash
 docker compose up -d
+```
 
+------------------------------------------------------------------------
 
-Dette starter PostgreSQL-containeren.
+### 2. Run Backend
 
-Kjør backend
+``` bash
 cd backend/Booking.Api
 dotnet run
+```
 
+Backend will start on:
 
-API-et kjører på:
+    http://localhost:5252
 
-http://localhost:5252
+Swagger UI:
 
+    http://localhost:5252/swagger
 
-Swagger:
+------------------------------------------------------------------------
 
-http://localhost:5252/swagger
+### 3. Run Frontend
 
-Kjør frontend
+``` bash
 cd frontend/booking-web
 npm install
 npm run dev
+```
 
+Frontend runs on:
 
-Frontend kjører på:
+    http://localhost:5173
 
-http://localhost:5173
+------------------------------------------------------------------------
 
+## Demo Credentials
 
-Opprett en .env-fil i frontend-mappen:
+After seeding:
 
-VITE_API_BASE_URL=http://localhost:5252
+    POST /dev/seed
 
-Demo-brukere
+You can log in with:
 
-Seed demo-data via:
+Admin: - email: admin@demo.no - password: admin
 
-POST /dev/seed
+User: - email: user@demo.no - password: user
 
+------------------------------------------------------------------------
 
-Innlogging:
+## Current Status
 
-admin@demo.no / admin
-user@demo.no / user
+✔ Authentication\
+✔ Resource listing\
+✔ Booking creation\
+✔ Overlap prevention\
+✔ Audit logging\
+✔ React frontend integration
 
+------------------------------------------------------------------------
 
-Videre utvikling
+## Design Goals
 
-Planlagte forbedringer:
+This project focuses on:
 
-Booking-opprettelse fra frontend
+-   Clear separation of concerns
+-   Domain-driven thinking
+-   Real-world backend structure
+-   Maintainable code over quick hacks
+-   Step-by-step evolution
 
-Rollebasert tilgang (Admin vs User)
+------------------------------------------------------------------------
 
-Service-lag mellom API og DbContext
+## Future Improvements
 
-Bedre feilhåndtering
+-   Proper password hashing (BCrypt)
+-   Role-based authorization policies
+-   Booking cancellation flow
+-   Admin dashboard
+-   CI/CD pipeline
+-   Deployment setup
 
-Deployment-oppsett
-
-
-Formål med prosjektet
-
-Dette prosjektet er laget for å:
-
-Øve på praktisk .NET backend-utvikling
-
-Jobbe med autentisering og sikkerhet
-
-Strukturere kode som et ekte API-prosjekt
-
-Integrere frontend og backend
-
-Vise helhetlig forståelse av fullstack
+------------------------------------------------------------------------
