@@ -3,17 +3,27 @@ using System.Security.Claims;
 using System.Text;
 using Booking.Api.Contracts;
 using Booking.Api.Data;
+using Booking.Api.Domain;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Booking.Api.Domain;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Swagger brukes for enkel testing og dokumentasjon av API-et
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Tillater at frontend (Vite på localhost:5173) kan kalle API-et lokalt i dev.
+// Uten dette vil nettleseren blokkere kall (CORS) og frontend får ofte "Failed to fetch".
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+        policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
 
 // Databasekobling via Entity Framework Core
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -22,8 +32,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 // JWT-oppsett for autentisering
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev_super_secret_change_me";
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Jwt:Key mangler i konfigurasjon.");
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
+if (keyBytes.Length < 32)
+    throw new InvalidOperationException("Jwt:Key må være minst 32 tegn (256 bits) for HS256.");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -53,6 +66,9 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// CORS må ligge før auth, ellers kan preflight/requests bli blokkert i nettleser
+app.UseCors();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -60,21 +76,41 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 // Seeder demo-data slik at API-et er brukbart med én gang
+// I dev vil vi at dette skal være "trygt å kjøre flere ganger" (idempotent).
 app.MapPost("/dev/seed", async (AppDbContext db) =>
 {
-    if (!await db.Users.AnyAsync(u => u.Email == "admin@demo.no"))
+    // Opprett eller oppdater demo-brukere
+    var admin = await db.Users.FirstOrDefaultAsync(u => u.Email == "admin@demo.no");
+    if (admin is null)
     {
         db.Users.Add(new User { Email = "admin@demo.no", PasswordHash = "admin", Role = "Admin" });
-        db.Users.Add(new User { Email = "user@demo.no", PasswordHash = "user", Role = "User" });
-
-        db.Resources.AddRange(
-            new Resource { Name = "Møterom A", Description = "4 plasser, skjerm" },
-            new Resource { Name = "Møterom B", Description = "8 plasser, whiteboard" }
-        );
-
-        await db.SaveChangesAsync();
+    }
+    else
+    {
+        // Sørger for at demo-login alltid fungerer
+        admin.PasswordHash = "admin";
+        admin.Role = "Admin";
     }
 
+    var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "user@demo.no");
+    if (user is null)
+    {
+        db.Users.Add(new User { Email = "user@demo.no", PasswordHash = "user", Role = "User" });
+    }
+    else
+    {
+        user.PasswordHash = "user";
+        user.Role = "User";
+    }
+
+    // Opprett ressurser hvis de mangler
+    if (!await db.Resources.AnyAsync(r => r.Name == "Møterom A"))
+        db.Resources.Add(new Resource { Name = "Møterom A", Description = "4 plasser, skjerm" });
+
+    if (!await db.Resources.AnyAsync(r => r.Name == "Møterom B"))
+        db.Resources.Add(new Resource { Name = "Møterom B", Description = "8 plasser, whiteboard" });
+
+    await db.SaveChangesAsync();
     return Results.Ok(new { seeded = true });
 });
 
@@ -141,6 +177,7 @@ app.MapPost("/bookings", async (
     if (overlap)
         return Results.Conflict("Tidsrommet overlapper med eksisterende booking.");
 
+    // Bruker full namespace her for å unngå navnekollisjon (Booking kan lett bli tolket som namespace)
     var booking = new Booking.Api.Data.Booking
     {
         ResourceId = req.ResourceId,
