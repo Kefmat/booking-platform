@@ -10,12 +10,16 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Swagger brukes for enkel testing og dokumentasjon av API-et
+//
+// Swagger brukes for enkel testing og dokumentasjon av API-et.
+//
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Tillater at frontend (Vite på localhost:5173) kan kalle API-et lokalt i dev.
-// Uten dette vil nettleseren blokkere kall (CORS) og frontend får ofte "Failed to fetch".
+//
+// CORS tillater at frontend (Vite på localhost:5173)
+// kan kalle backend lokalt uten å bli blokkert av nettleseren.
+//
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -25,16 +29,23 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 
-// Databasekobling via Entity Framework Core
+//
+// Databasekobling via Entity Framework Core.
+//
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("db"));
 });
 
-// JWT-oppsett for autentisering
+//
+// JWT-oppsett for autentisering.
+// Vi krever at nøkkelen er minst 32 tegn for HS256.
+//
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("Jwt:Key mangler i konfigurasjon.");
+
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
+
 if (keyBytes.Length < 32)
     throw new InvalidOperationException("Jwt:Key må være minst 32 tegn (256 bits) for HS256.");
 
@@ -56,7 +67,10 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Kjører migrasjoner automatisk ved oppstart (kun dev/demo)
+//
+// Kjører migrasjoner automatisk ved oppstart.
+// Dette er praktisk i dev, men i produksjon bør dette styres mer kontrollert.
+//
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -66,59 +80,84 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// CORS må ligge før auth, ellers kan preflight/requests bli blokkert i nettleser
 app.UseCors();
-
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Enkel healthcheck brukt av Docker / overvåkning
+//
+// Enkel healthcheck for Docker / overvåkning.
+//
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// Seeder demo-data slik at API-et er brukbart med én gang
-// I dev vil vi at dette skal være "trygt å kjøre flere ganger" (idempotent).
+//
+// Seeder demo-data.
+// Denne er idempotent (kan kjøres flere ganger uten å lage duplikater).
+//
 app.MapPost("/dev/seed", async (AppDbContext db) =>
 {
-    // Opprett eller oppdater demo-brukere
+    // ADMIN
     var admin = await db.Users.FirstOrDefaultAsync(u => u.Email == "admin@demo.no");
     if (admin is null)
     {
-        db.Users.Add(new User { Email = "admin@demo.no", PasswordHash = "admin", Role = "Admin" });
+        db.Users.Add(new User
+        {
+            Email = "admin@demo.no",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
+            Role = "Admin"
+        });
     }
     else
     {
         // Sørger for at demo-login alltid fungerer
-        admin.PasswordHash = "admin";
+        admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin");
         admin.Role = "Admin";
     }
 
+    // USER
     var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "user@demo.no");
     if (user is null)
     {
-        db.Users.Add(new User { Email = "user@demo.no", PasswordHash = "user", Role = "User" });
+        db.Users.Add(new User
+        {
+            Email = "user@demo.no",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("user"),
+            Role = "User"
+        });
     }
     else
     {
-        user.PasswordHash = "user";
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword("user");
         user.Role = "User";
     }
 
-    // Opprett ressurser hvis de mangler
+    // Ressurser
     if (!await db.Resources.AnyAsync(r => r.Name == "Møterom A"))
-        db.Resources.Add(new Resource { Name = "Møterom A", Description = "4 plasser, skjerm" });
+        db.Resources.Add(new Resource
+        {
+            Name = "Møterom A",
+            Description = "4 plasser, skjerm"
+        });
 
     if (!await db.Resources.AnyAsync(r => r.Name == "Møterom B"))
-        db.Resources.Add(new Resource { Name = "Møterom B", Description = "8 plasser, whiteboard" });
+        db.Resources.Add(new Resource
+        {
+            Name = "Møterom B",
+            Description = "8 plasser, whiteboard"
+        });
 
     await db.SaveChangesAsync();
     return Results.Ok(new { seeded = true });
 });
 
-// Innlogging og utstedelse av JWT-token
+//
+// Login med BCrypt-verify.
+// Vi sammenligner aldri plain text mot databasen.
+//
 app.MapPost("/auth/login", async (AppDbContext db, LoginRequest req) =>
 {
     var user = await db.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
-    if (user is null || user.PasswordHash != req.Password)
+
+    if (user is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
         return Results.Unauthorized();
 
     var claims = new List<Claim>
@@ -140,10 +179,14 @@ app.MapPost("/auth/login", async (AppDbContext db, LoginRequest req) =>
     );
 
     var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
     return Results.Ok(new LoginResponse(jwt, user.Role, user.Email));
 });
 
-// Henter alle aktive ressurser
+//
+// Henter alle aktive ressurser.
+// Krever gyldig JWT.
+//
 app.MapGet("/resources", async (AppDbContext db) =>
 {
     return await db.Resources
@@ -152,7 +195,10 @@ app.MapGet("/resources", async (AppDbContext db) =>
         .ToListAsync();
 }).RequireAuthorization();
 
-// Oppretter booking med overlapp-sjekk
+//
+// Oppretter booking.
+// Inneholder domeneregel for overlapp.
+//
 app.MapPost("/bookings", async (
     AppDbContext db,
     ClaimsPrincipal user,
@@ -167,7 +213,6 @@ app.MapPost("/bookings", async (
     if (req.End <= req.Start)
         return Results.BadRequest("Slutt må være etter start.");
 
-    // Hindrer dobbeltbooking ved overlapp
     var overlap = await db.Bookings.AnyAsync(b =>
         b.ResourceId == req.ResourceId &&
         b.Status == "Created" &&
@@ -177,7 +222,6 @@ app.MapPost("/bookings", async (
     if (overlap)
         return Results.Conflict("Tidsrommet overlapper med eksisterende booking.");
 
-    // Bruker full namespace her for å unngå navnekollisjon (Booking kan lett bli tolket som namespace)
     var booking = new Booking.Api.Data.Booking
     {
         ResourceId = req.ResourceId,
@@ -188,7 +232,6 @@ app.MapPost("/bookings", async (
 
     db.Bookings.Add(booking);
 
-    // Logger handlingen for sporbarhet
     db.AuditEvents.Add(new AuditEvent
     {
         ActorEmail = email,
@@ -198,6 +241,7 @@ app.MapPost("/bookings", async (
     });
 
     await db.SaveChangesAsync();
+
     return Results.Created($"/bookings/{booking.Id}", booking);
 }).RequireAuthorization();
 
