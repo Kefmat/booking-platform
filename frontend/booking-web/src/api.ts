@@ -10,17 +10,46 @@ export type Resource = {
   isActive: boolean;
 };
 
-// Returnerer alltid en type som fetch godtar som headers.
-// Hvis vi ikke har token, returnerer vi et tomt objekt.
+export type BookingCreateRequest = {
+  resourceId: string;
+  start: string; // ISO string
+  end: string;   // ISO string
+};
+
+export type BookingResponse = {
+  id: string;
+  resourceId: string;
+  userId: string;
+  start: string;
+  end: string;
+  status: string;
+  createdAt: string;
+};
+
 function authHeader(): HeadersInit {
   const token = localStorage.getItem("token");
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }
 
+async function readErrorMessage(res: Response): Promise<string> {
+  // Backend kan returnere tekst (BadRequest/Conflict), eller JSON, eller ingenting.
+  const contentType = res.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      return typeof data === "string" ? data : JSON.stringify(data);
+    }
+    const text = await res.text();
+    return text || `HTTP ${res.status}`;
+  } catch {
+    return `HTTP ${res.status}`;
+  }
+}
+
 export async function seed(): Promise<void> {
   const res = await fetch(`${BASE_URL}/dev/seed`, { method: "POST" });
-  if (!res.ok) throw new Error("Seed feilet");
+  if (!res.ok) throw new Error(await readErrorMessage(res));
 }
 
 export async function login(req: LoginRequest): Promise<LoginResponse> {
@@ -35,12 +64,27 @@ export async function login(req: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function getResources(): Promise<Resource[]> {
-  const res = await fetch(`${BASE_URL}/resources`, {
-    headers: authHeader(),
-  });
+  const res = await fetch(`${BASE_URL}/resources`, { headers: authHeader() });
 
   if (res.status === 401) throw new Error("Ikke logget inn (401).");
-  if (!res.ok) throw new Error("Kunne ikke hente ressurser");
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+
+  return res.json();
+}
+
+export async function createBooking(req: BookingCreateRequest): Promise<BookingResponse> {
+  const res = await fetch(`${BASE_URL}/bookings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(),
+    },
+    body: JSON.stringify(req),
+  });
+
+  if (res.status === 401) throw new Error("Du er ikke logget inn (401).");
+  if (res.status === 409) throw new Error(await readErrorMessage(res)); // Overlapp
+  if (!res.ok) throw new Error(await readErrorMessage(res));
 
   return res.json();
 }
