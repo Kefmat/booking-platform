@@ -109,22 +109,18 @@ app.MapPost("/bookings", async (
     BookingCreateRequest req,
     CancellationToken ct) =>
 {
-    var (ok, error, booking) = await bookingService.CreateBookingAsync(user, req, ct);
+    var result = await bookingService.CreateBookingAsync(user, req, ct);
 
-    if (!ok)
-    {
-        // Vi holder responsene eksplisitte for frontend:
-        // - overlap => 409
-        // - validation => 400
-        // - unauthorized => 401
-        if (error == "Unauthorized") return Results.Unauthorized();
-        if (error != null && error.Contains("overlapper", StringComparison.OrdinalIgnoreCase))
-            return Results.Conflict(error);
+    if (!result.IsSuccess)
+        return Results.Problem(
+            title: "Kunne ikke opprette booking",
+            detail: result.Error,
+            statusCode: result.StatusCode
+        );
 
-        return Results.BadRequest(error ?? "Ukjent feil.");
-    }
-
-    return Results.Created($"/bookings/{booking!.Id}", booking);
+    // StatusCode 201 fra service gir "Created"-semantikk.
+    return Results.Created($"/bookings/{result.Value!.Id}", result.Value);
 }).RequireAuthorization();
+
 
 app.Run();

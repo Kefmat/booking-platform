@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Booking.Api.Common;
 using Booking.Api.Contracts;
 using Booking.Api.Data;
 using Booking.Api.Domain;
@@ -7,8 +8,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Booking.Api.Services;
 
-// Samler booking-regler + opprettelse + audit logging.
-// Endepunktet blir bare en "routing"-wrapper.
 public sealed class BookingService : IBookingService
 {
     private readonly AppDbContext _db;
@@ -18,7 +17,7 @@ public sealed class BookingService : IBookingService
         _db = db;
     }
 
-    public async Task<(bool ok, string? error, Booking.Api.Data.Booking? booking)> CreateBookingAsync(
+    public async Task<Result<Booking.Api.Data.Booking>> CreateBookingAsync(
         ClaimsPrincipal user,
         BookingCreateRequest req,
         CancellationToken ct = default)
@@ -27,10 +26,10 @@ public sealed class BookingService : IBookingService
         var email = user.FindFirstValue(ClaimTypes.Email) ?? "ukjent";
 
         if (userId is null)
-            return (false, "Unauthorized", null);
+            return Result<Booking.Api.Data.Booking>.Fail("Ikke innlogget.", 401);
 
         if (req.End <= req.Start)
-            return (false, "Slutt må være etter start.", null);
+            return Result<Booking.Api.Data.Booking>.Fail("Slutt må være etter start.", 400);
 
         var overlap = await _db.Bookings.AnyAsync(b =>
             b.ResourceId == req.ResourceId &&
@@ -38,7 +37,7 @@ public sealed class BookingService : IBookingService
             BookingRules.Overlapper(req.Start, req.End, b.Start, b.End), ct);
 
         if (overlap)
-            return (false, "Tidsrommet overlapper med eksisterende booking.", null);
+            return Result<Booking.Api.Data.Booking>.Fail("Tidsrommet overlapper med eksisterende booking.", 409);
 
         var booking = new Booking.Api.Data.Booking
         {
@@ -59,6 +58,8 @@ public sealed class BookingService : IBookingService
         });
 
         await _db.SaveChangesAsync(ct);
-        return (true, null, booking);
+
+        // 201 er mer riktig for "Created" enn 200.
+        return Result<Booking.Api.Data.Booking>.Ok(booking, 201);
     }
 }

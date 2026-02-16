@@ -1,11 +1,12 @@
 using System.Security.Claims;
+using Booking.Api.Common;
 using Booking.Api.Contracts;
 
 namespace Booking.Api.Services.Abstractions;
 
 public interface IBookingService
 {
-    Task<(bool ok, string? error, Booking.Api.Data.Booking? booking)> CreateBookingAsync(
+    Task<Result<Booking.Api.Data.Booking>> CreateBookingAsync(
         ClaimsPrincipal user,
         BookingCreateRequest req,
         CancellationToken ct = default);
