@@ -8,7 +8,6 @@
 ![React](https://img.shields.io/badge/React-18-blue)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)
-![Status](https://img.shields.io/badge/status-active-development-orange)
 
 ---
 
@@ -33,7 +32,6 @@
 7. [Deployment](#deployment)
 8. [Roadmap](#roadmap)
 9. [Philosophy & Contributing](#philosophy--contributing)
-10. [License](#license)
 
 ---
 
