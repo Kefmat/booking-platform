@@ -50,15 +50,15 @@ integration.
 ```mermaid
 graph LR
     subgraph Frontend
-        A[React (Vite/TS)]
+        A["React (Vite/TS)"]
     end
     subgraph Backend
-        B[Minimal API]
+        B["Minimal API"]
         B -->|HTTP / JSON| C[(PostgreSQL)]
-        B --> D[JWT Auth]
+        B --> D["JWT Auth"]
     end
     A -->|fetch| B
-    C --- E[Docker Compose]
+    C --- E["Docker Compose"]
 ```
 
 ### Data Model
@@ -290,14 +290,5 @@ This repository is a learning playground.  Keep PRs small, well‑tested,
 and focused on a single concern.  Follow clean‑code and SOLID
 principles; prefer clarity over cleverness.
 
-> 🔒 Passwords are hashed only for demonstration; **do not** use this
+> Passwords are hashed only for demonstration; **do not** use this
 > code in production without review.
-
-Contributions are welcome!  Open issues or PRs against `main`.
-
----
-
-## License
-
-[MIT](LICENSE) or the license that applies to your project.
-
