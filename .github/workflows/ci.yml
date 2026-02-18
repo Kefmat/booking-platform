@@ -1,26 +1,29 @@
-name: CI
+name: CI - build and test
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: 8.0.x
 
-      - name: Restore
-        run: dotnet restore
+      - name: Restore dependencies
+        run: dotnet restore booking-platform.sln
 
       - name: Build
-        run: dotnet build -c Release --no-restore
+        run: dotnet build booking-platform.sln -c Release --no-restore
 
-      - name: Test
-        run: dotnet test -c Release --no-build
+      - name: Run tests
+        run: dotnet test booking-platform.sln -c Release --no-build --verbosity normal
