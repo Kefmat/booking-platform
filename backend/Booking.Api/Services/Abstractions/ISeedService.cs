@@ -1,6 +1,8 @@
+using Booking.Api.Common;
+
 namespace Booking.Api.Services.Abstractions;
 
 public interface ISeedService
 {
-    Task SeedAsync(CancellationToken ct = default);
+    Task<Result> SeedAsync(CancellationToken ct = default);
 }

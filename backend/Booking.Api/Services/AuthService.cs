@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Booking.Api.Common;
 using Booking.Api.Contracts;
 using Booking.Api.Data;
 using Booking.Api.Services.Abstractions;
@@ -8,8 +9,8 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Booking.Api.Services;
 
-// Samler all autentiseringslogikk på ett sted.
-// Da slipper vi "JWT-bygging" og passordsjekk inni endepunkter.
+// Autentisering samles her slik at Program.cs bare blir "wiring" + routing.
+// Result-pattern gjør at vi kan returnere riktig statuskode uten masse if/else i endepunktet.
 public sealed class AuthService : IAuthService
 {
     private readonly AppDbContext _db;
@@ -21,13 +22,18 @@ public sealed class AuthService : IAuthService
         _keyBytes = keyBytes;
     }
 
-    public async Task<LoginResponse?> LoginAsync(LoginRequest req, CancellationToken ct = default)
+    public async Task<Result<LoginResponse>> LoginAsync(LoginRequest req, CancellationToken ct = default)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == req.Email, ct);
-        if (user is null) return null;
+        // Bevisst samme feilmelding uansett om e-post eller passord er feil
+        // for å ikke "lekke" hvilke brukere som finnes (enkelt tiltak mot user-enumeration).
+        const string invalid = "Ugyldig e-post eller passord.";
 
-        // Passord sjekkes med BCrypt (aldri plain text sammenligning).
-        if (!BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash)) return null;
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == req.Email, ct);
+        if (user is null)
+            return Result<LoginResponse>.Fail(invalid, 401);
+
+        if (!BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
+            return Result<LoginResponse>.Fail(invalid, 401);
 
         var claims = new List<Claim>
         {
@@ -48,6 +54,7 @@ public sealed class AuthService : IAuthService
         );
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-        return new LoginResponse(jwt, user.Role, user.Email);
+
+        return Result<LoginResponse>.Ok(new LoginResponse(jwt, user.Role, user.Email), 200);
     }
 }

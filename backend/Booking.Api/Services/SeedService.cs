@@ -1,11 +1,11 @@
+using Booking.Api.Common;
 using Booking.Api.Data;
 using Booking.Api.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Booking.Api.Services;
 
-// Holder seed-logikken unna Program.cs.
-// Idempotent: trygt å kjøre flere ganger uten duplikater.
+// Seed er dev-hjelp. Result gjør at endepunktet kan returnere tydelig statuskode og melding ved feil.
 public sealed class SeedService : ISeedService
 {
     private readonly AppDbContext _db;
@@ -15,7 +15,7 @@ public sealed class SeedService : ISeedService
         _db = db;
     }
 
-    public async Task SeedAsync(CancellationToken ct = default)
+    public async Task<Result> SeedAsync(CancellationToken ct = default)
     {
         var admin = await _db.Users.FirstOrDefaultAsync(u => u.Email == "admin@demo.no", ct);
         if (admin is null)
@@ -56,5 +56,7 @@ public sealed class SeedService : ISeedService
             _db.Resources.Add(new Resource { Name = "Møterom B", Description = "8 plasser, whiteboard" });
 
         await _db.SaveChangesAsync(ct);
+
+        return Result.Ok(200);
     }
 }

@@ -84,15 +84,31 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 // Seed
 app.MapPost("/dev/seed", async (ISeedService seedService, CancellationToken ct) =>
 {
-    await seedService.SeedAsync(ct);
+    var result = await seedService.SeedAsync(ct);
+
+    if (!result.IsSuccess)
+        return Results.Problem(
+            title: "Seed feilet",
+            detail: result.Error,
+            statusCode: result.StatusCode
+        );
+
     return Results.Ok(new { seeded = true });
 });
 
 // Login
 app.MapPost("/auth/login", async (IAuthService authService, LoginRequest req, CancellationToken ct) =>
 {
-    var res = await authService.LoginAsync(req, ct);
-    return res is null ? Results.Unauthorized() : Results.Ok(res);
+    var result = await authService.LoginAsync(req, ct);
+
+    if (!result.IsSuccess)
+        return Results.Problem(
+            title: "Innlogging feilet",
+            detail: result.Error,
+            statusCode: result.StatusCode
+        );
+
+    return Results.Ok(result.Value);
 });
 
 // Resources (protected)
