@@ -1,104 +1,115 @@
 # Booking Platform
 
-A fullstack booking system built with **.NET 8 (Minimal API)** and
-**React (Vite + TypeScript)**.
+> A fullstack booking system built with **.NET 8 (Minimal API)** and
+> **React (Vite + TypeScript)**.
 
-This project is designed as a practical backend-focused portfolio
-project, with clean architecture, clear domain logic, authentication,
-and database integration.
-
-------------------------------------------------------------------------
-
-## Overview
-
-The system allows users to:
-
--   Log in using JWT-based authentication
--   View available resources (e.g. meeting rooms)
--   Create bookings within a time range
--   Prevent overlapping bookings
--   Track actions through audit logging
-
-The goal is to simulate a realistic backend system structure, not just a
-demo CRUD API.
+![.NET](https://img.shields.io/badge/.NET-8.0-blue)
+![React](https://img.shields.io/badge/React-18-blue)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)
+![Status](https://img.shields.io/badge/status-active-development-orange)
 
 ------------------------------------------------------------------------
 
-## Tech Stack
+## Purpose
 
-### Backend
+This project is built as a **backend-focused portfolio system** to
+demonstrate:
 
--   .NET 8 (Minimal API)
--   Entity Framework Core
--   PostgreSQL
--   JWT Authentication
--   Swagger / OpenAPI
--   Docker (for database)
+-   Clean architecture principles\
+-   Domain-driven thinking\
+-   Authentication & authorization\
+-   Real-world validation logic\
+-   Service-layer separation\
+-   CI-ready project structure
 
-### Frontend
+It is intentionally designed to resemble a realistic backend system ---
+not just a CRUD demo.
 
--   React
--   TypeScript
+------------------------------------------------------------------------
+
+# Features
+
+## Authentication
+
+-   JWT-based authentication\
+-   Secure password hashing (BCrypt)\
+-   Role-ready architecture
+
+## Booking System
+
+-   Create bookings within a time range\
+-   Prevent overlapping bookings (domain rule)\
+-   View available resources\
+-   Audit logging of user actions
+
+## Frontend
+
+-   React\
+-   TypeScript\
 -   Vite
 
 ------------------------------------------------------------------------
 
-## Project Structure
+# Architecture
 
     booking-platform/
     │
     ├── backend/
     │   └── Booking.Api/
-    │       ├── Data/
-    │       ├── Domain/
-    │       ├── Contracts/
-    │       └── Program.cs
+    │       ├── Common/        → Result pattern
+    │       ├── Data/          → EF Core entities & DbContext
+    │       ├── Domain/        → Business rules (e.g. overlap logic)
+    │       ├── Contracts/     → Request/Response DTOs
+    │       ├── Services/      → Application/service layer
+    │       └── Program.cs     → API wiring & endpoint mapping
     │
     ├── frontend/
     │   └── booking-web/
     │
     └── docker-compose.yml
 
-### Folder Responsibilities
+------------------------------------------------------------------------
 
--   **Data/** → EF Core entities and DbContext
--   **Domain/** → Business rules (e.g., booking overlap logic)
--   **Contracts/** → Request/response DTOs
--   **Program.cs** → API setup and endpoint definitions
+# Tech Stack
 
-Database models and API contracts are separated to allow future
-scalability.
+## Backend
+
+-   .NET 8 (Minimal API)\
+-   Entity Framework Core\
+-   PostgreSQL\
+-   JWT Authentication\
+-   BCrypt password hashing\
+-   Swagger / OpenAPI\
+-   Docker (database)
+
+## Frontend
+
+-   React\
+-   TypeScript\
+-   Vite
 
 ------------------------------------------------------------------------
 
-## Running Locally
+# Running Locally
 
-### 1. Start PostgreSQL (Docker)
+## 1️.Start Database
 
 ``` bash
 docker compose up -d
 ```
 
-------------------------------------------------------------------------
-
-### 2. Run Backend
+## 2️.Run Backend
 
 ``` bash
 cd backend/Booking.Api
 dotnet run
 ```
 
-Backend will start on:
+Backend: http://localhost:5252\
+Swagger: http://localhost:5252/swagger
 
-    http://localhost:5252
-
-Swagger UI:
-
-    http://localhost:5252/swagger
-
-------------------------------------------------------------------------
-
-### 3. Run Frontend
+## 3️.Run Frontend
 
 ``` bash
 cd frontend/booking-web
@@ -106,56 +117,65 @@ npm install
 npm run dev
 ```
 
-Frontend runs on:
-
-    http://localhost:5173
+Frontend: http://localhost:5173
 
 ------------------------------------------------------------------------
 
-## Demo Credentials
+# Demo Credentials
 
-After seeding:
+After calling:
 
-    POST /dev/seed
+POST /dev/seed
 
-You can log in with:
+Admin\
+- email: admin@demo.no\
+- password: admin
 
-Admin: - email: admin@demo.no - password: admin
-
-User: - email: user@demo.no - password: user
+User\
+- email: user@demo.no\
+- password: user
 
 ------------------------------------------------------------------------
 
-## Current Status
+# Current Capabilities
 
-✔ Authentication\
+✔ Authentication (JWT)\
+✔ BCrypt password hashing\
 ✔ Resource listing\
 ✔ Booking creation\
 ✔ Overlap prevention\
 ✔ Audit logging\
-✔ React frontend integration
+✔ Service layer abstraction\
+✔ Result-pattern implementation\
+✔ CI build validation
 
 ------------------------------------------------------------------------
 
-## Design Goals
+# Roadmap
 
-This project focuses on:
+## Phase 1
 
--   Clear separation of concerns
--   Domain-driven thinking
--   Real-world backend structure
--   Maintainable code over quick hacks
--   Step-by-step evolution
+-   Role-based authorization\
+-   "My bookings" endpoint\
+-   Booking cancellation\
+-   Admin resource management
+
+## Phase 2
+
+-   Full CI pipeline\
+-   Docker image build in CI\
+-   Deployment-ready configuration
+
+## Phase 3
+
+-   Booking history view\
+-   Admin dashboard\
+-   Improved UX & error handling
 
 ------------------------------------------------------------------------
 
-## Future Improvements
+# Project Philosophy
 
--   Proper password hashing (BCrypt)
--   Role-based authorization policies
--   Booking cancellation flow
--   Admin dashboard
--   CI/CD pipeline
--   Deployment setup
+This project evolves step-by-step with a focus on clean architecture,
+maintainability, and real-world backend practices.
 
-------------------------------------------------------------------------

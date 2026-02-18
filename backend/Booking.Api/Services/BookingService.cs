@@ -59,7 +59,6 @@ public sealed class BookingService : IBookingService
 
         await _db.SaveChangesAsync(ct);
 
-        // 201 er mer riktig for "Created" enn 200.
         return Result<Booking.Api.Data.Booking>.Ok(booking, 201);
     }
 }
