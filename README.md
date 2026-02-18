@@ -112,7 +112,7 @@ flowchart TB
             end
         end
         subgraph frontend
-            F1[booking-web (React/Vite)]
+            F1["booking-web (React/Vite)"]
         end
     end
 ```
