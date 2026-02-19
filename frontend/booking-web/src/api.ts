@@ -88,3 +88,35 @@ export async function createBooking(req: BookingCreateRequest): Promise<BookingR
 
   return res.json();
 }
+
+export type Booking = {
+  id: string;
+  resourceId: string;
+  userId: string;
+  start: string;
+  end: string;
+  status: string;
+  createdAt?: string;
+};
+
+export async function getMyBookings(): Promise<Booking[]> {
+  const res = await fetch(`${BASE_URL}/bookings/my`, {
+    headers: { ...authHeader() },
+  });
+
+  if (res.status === 401) throw new Error("Ikke logget inn (401).");
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function cancelBooking(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/bookings/${id}/cancel`, {
+    method: "POST",
+    headers: { ...authHeader() },
+  });
+
+  if (res.status === 401) throw new Error("Ikke logget inn (401).");
+  if (res.status === 403) throw new Error("Du har ikke tilgang til å kansellere denne bookingen (403).");
+  if (res.status === 404) throw new Error("Fant ikke bookingen (404).");
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+}

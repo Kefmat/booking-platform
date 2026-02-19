@@ -138,5 +138,66 @@ app.MapPost("/bookings", async (
     return Results.Created($"/bookings/{result.Value!.Id}", result.Value);
 }).RequireAuthorization();
 
+// Henter innlogget brukers bookinger (nyeste først).
+app.MapGet("/bookings/my", async (AppDbContext db, ClaimsPrincipal user, CancellationToken ct) =>
+{
+    var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (userId is null)
+        return Results.Unauthorized();
+
+    var uid = Guid.Parse(userId);
+
+    var bookings = await db.Bookings
+        .Where(b => b.UserId == uid)
+        .OrderByDescending(b => b.Start)
+        .ToListAsync(ct);
+
+    return Results.Ok(bookings);
+}).RequireAuthorization();
+
+// Kansellerer en booking (soft-cancel: status endres, ikke sletting).
+// Kun eier eller Admin får lov.
+app.MapPost("/bookings/{id:guid}/cancel", async (
+    Guid id,
+    AppDbContext db,
+    ClaimsPrincipal user,
+    CancellationToken ct) =>
+{
+    var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+    var role = user.FindFirstValue(ClaimTypes.Role);
+    var email = user.FindFirstValue(ClaimTypes.Email) ?? "ukjent";
+
+    if (userId is null)
+        return Results.Unauthorized();
+
+    var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == id, ct);
+    if (booking is null)
+        return Results.NotFound();
+
+    var isOwner = booking.UserId.ToString() == userId;
+    var isAdmin = string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase);
+
+    if (!isOwner && !isAdmin)
+        return Results.Forbid();
+
+    // Hvis den allerede er kansellert, gjør vi det idempotent (ikke feil).
+    if (booking.Status != "Cancelled")
+    {
+        booking.Status = "Cancelled";
+
+        db.AuditEvents.Add(new AuditEvent
+        {
+            ActorEmail = email,
+            Action = "CANCEL",
+            EntityType = "Booking",
+            EntityId = booking.Id.ToString()
+        });
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    return Results.Ok(new { cancelled = true });
+}).RequireAuthorization();
+
 
 app.Run();

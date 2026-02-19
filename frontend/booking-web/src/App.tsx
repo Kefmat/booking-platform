@@ -1,42 +1,79 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  cancelBooking,
   createBooking,
+  getMyBookings,
   getResources,
   login,
   seed,
+  type Booking,
   type Resource,
 } from "./api";
 
-// Konverterer "datetime-local" (lokal tid) til ISO string.
-// Vi bruker Date(value).toISOString() som gir UTC.
-// Det er helt OK for demo – backend jobber med DateTimeOffset.
+/**
+ * Konverterer "datetime-local" (lokal tid) til ISO string (UTC).
+ * Dette gjør at backend får et entydig tidspunkt uansett tidssone.
+ *
+ * NB: Date(value).toISOString() tolker datetime-local som lokal tid.
+ */
 function toIsoFromDateTimeLocal(value: string): string {
-  // value eksempel: "2026-02-11T12:30"
-  // new Date(value) tolker dette som lokal tid i nettleseren.
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) throw new Error("Ugyldig dato/tid.");
   return d.toISOString();
 }
 
+/**
+ * Formaterer ISO-dato til lesbar lokal dato/tid for UI.
+ */
+function formatLocal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
 export default function App() {
-  // Login
+  // -------------------------
+  // Login state
+  // -------------------------
   const [email, setEmail] = useState("admin@demo.no");
   const [password, setPassword] = useState("admin");
 
+  // -------------------------
   // UI state
+  // -------------------------
   const [message, setMessage] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  // Data
+  // -------------------------
+  // Data state
+  // -------------------------
   const [resources, setResources] = useState<Resource[]>([]);
+  const [myBookings, setMyBookings] = useState<Booking[]>([]);
 
-  // Booking form
+  // -------------------------
+  // Booking form state
+  // -------------------------
   const [resourceId, setResourceId] = useState("");
   const [startLocal, setStartLocal] = useState("");
   const [endLocal, setEndLocal] = useState("");
 
-  const isLoggedIn = useMemo(() => !!localStorage.getItem("token"), []);
+  /**
+   * Bruker vi token i localStorage som "kilde til sannhet" for innlogging.
+   * Dette er litt enkelt, men fungerer fint for en liten demo-app.
+   */
+  const token = localStorage.getItem("token");
+  const isLoggedIn = !!token;
+
+  /**
+   * Lager et oppslag fra resourceId -> ressursnavn.
+   * Dette gjør at vi kan vise ressursnavn i bookinglista (ikke bare UUID).
+   */
+  const resourceNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of resources) map.set(r.id, r.name);
+    return map;
+  }, [resources]);
 
   function setOk(msg: string) {
     setError("");
@@ -48,10 +85,19 @@ export default function App() {
     setError(msg);
   }
 
+  // ---------------------------------------
+  // API actions
+  // ---------------------------------------
+
+  /**
+   * Seeder demo-data på backend.
+   * Vi holder denne som en egen knapp fordi dette er en dev-funksjon.
+   */
   async function handleSeed() {
     setMessage("");
     setError("");
     setLoading(true);
+
     try {
       await seed();
       setOk("Seed ok ✅");
@@ -62,6 +108,11 @@ export default function App() {
     }
   }
 
+  /**
+   * Logger inn og lagrer token i localStorage.
+   * Vi reloader siden etter login for å gjøre demoen enkel og robust.
+   * (I en “ordentlig” app ville vi heller oppdatert state uten reload.)
+   */
   async function handleLogin() {
     setMessage("");
     setError("");
@@ -77,11 +128,25 @@ export default function App() {
       setFail(e?.message ?? "Innlogging feilet");
     } finally {
       setLoading(false);
-      // Enkelt: refresh for å få "innlogget"-tilstand med én gang
       window.location.reload();
     }
   }
 
+  /**
+   * Logger ut ved å fjerne token/metadata.
+   * Reload gjør at vi nullstiller UI og state enkelt.
+   */
+  function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("email");
+    localStorage.removeItem("role");
+    window.location.reload();
+  }
+
+  /**
+   * Henter ressurser fra API.
+   * Siden endpointet er beskyttet, må token være satt.
+   */
   async function handleLoadResources() {
     setMessage("");
     setError("");
@@ -102,13 +167,52 @@ export default function App() {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("email");
-    localStorage.removeItem("role");
-    window.location.reload();
+  /**
+   * Henter innlogget brukers bookinger.
+   */
+  async function handleLoadMyBookings() {
+    setMessage("");
+    setError("");
+    setLoading(true);
+
+    try {
+      const items = await getMyBookings();
+      setMyBookings(items);
+      setOk(`Hentet ${items.length} bookinger ✅`);
+    } catch (e: any) {
+      setFail(e?.message ?? "Kunne ikke hente bookinger");
+    } finally {
+      setLoading(false);
+    }
   }
 
+  /**
+   * Kansellerer en booking.
+   * Backend er idempotent (hvis den allerede er kansellert, får du OK).
+   */
+  async function handleCancelBooking(id: string) {
+    setMessage("");
+    setError("");
+    setLoading(true);
+
+    try {
+      await cancelBooking(id);
+      setOk("Booking kansellert ✅");
+
+      // Refresh liste så UI alltid viser korrekt status etter handling.
+      const items = await getMyBookings();
+      setMyBookings(items);
+    } catch (e: any) {
+      setFail(e?.message ?? "Kunne ikke kansellere booking");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * Oppretter booking med enkel validering i UI.
+   * Backend validerer også (så UI-valideringen er bare “brukervennlighet”).
+   */
   async function handleCreateBooking() {
     setMessage("");
     setError("");
@@ -121,7 +225,6 @@ export default function App() {
       const startIso = toIsoFromDateTimeLocal(startLocal);
       const endIso = toIsoFromDateTimeLocal(endLocal);
 
-      // En enkel validering i UI (backend validerer også)
       if (new Date(endIso) <= new Date(startIso)) {
         throw new Error("Slutt må være etter start.");
       }
@@ -134,9 +237,13 @@ export default function App() {
 
       setOk(`Booking opprettet ✅ (id: ${created.id})`);
 
-      // Rydd skjema litt etter suksess
+      // Rydd skjema etter suksess
       setStartLocal("");
       setEndLocal("");
+
+      // Oppdater “mine bookinger” så du ser den nye bookingen med en gang.
+      const items = await getMyBookings();
+      setMyBookings(items);
     } catch (e: any) {
       // Her får vi også fine meldinger for 409 overlapp
       setFail(e?.message ?? "Kunne ikke opprette booking");
@@ -145,10 +252,15 @@ export default function App() {
     }
   }
 
+  // ---------------------------------------
+  // Autoload ved oppstart (hvis innlogget)
+  // ---------------------------------------
   useEffect(() => {
-    // Autoload ressurser hvis vi allerede er logget inn
     if (localStorage.getItem("token")) {
+      // Vi henter både ressurser og mine bookinger i starten
+      // slik at UI kommer opp “ferdig” med data.
       handleLoadResources();
+      handleLoadMyBookings();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -157,18 +269,19 @@ export default function App() {
   const loggedInRole = localStorage.getItem("role");
 
   return (
-    <div style={{ maxWidth: 950, margin: "40px auto", padding: 16, fontFamily: "system-ui" }}>
+    <div style={{ maxWidth: 980, margin: "40px auto", padding: 16, fontFamily: "system-ui" }}>
       <h1 style={{ marginBottom: 6 }}>Booking Platform</h1>
       <p style={{ marginTop: 0, opacity: 0.75 }}>
-        Enkel UI for å teste innlogging, ressursliste og booking.
+        Enkel UI for å teste innlogging, ressurser, booking og kansellering.
       </p>
 
+      {/* Topplinje: seed + login/logout */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
         <button onClick={handleSeed} disabled={loading}>
           Seed demo-data
         </button>
 
-        {!localStorage.getItem("token") ? (
+        {!isLoggedIn ? (
           <>
             <div>
               <label style={{ display: "block", fontSize: 12 }}>E-post</label>
@@ -177,7 +290,11 @@ export default function App() {
 
             <div>
               <label style={{ display: "block", fontSize: 12 }}>Passord</label>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+              />
             </div>
 
             <button onClick={handleLogin} disabled={loading}>
@@ -196,6 +313,10 @@ export default function App() {
               Oppdater ressurser
             </button>
 
+            <button onClick={handleLoadMyBookings} disabled={loading}>
+              Oppdater mine bookinger
+            </button>
+
             <button onClick={handleLogout} disabled={loading}>
               Logg ut
             </button>
@@ -203,6 +324,7 @@ export default function App() {
         )}
       </div>
 
+      {/* Statusmelding/feil */}
       {(message || error) && (
         <div
           style={{
@@ -217,11 +339,23 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      {/* Innhold */}
+      <div
+        style={{
+          marginTop: 28,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 18,
+          alignItems: "start",
+        }}
+      >
+        {/* Ressurser */}
         <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
           <h2 style={{ marginTop: 0 }}>Ressurser</h2>
 
-          {resources.length === 0 ? (
+          {!isLoggedIn ? (
+            <p style={{ opacity: 0.7 }}>Logg inn for å hente ressurser.</p>
+          ) : resources.length === 0 ? (
             <p style={{ opacity: 0.7 }}>Ingen ressurser lastet ennå.</p>
           ) : (
             <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
@@ -234,6 +368,7 @@ export default function App() {
           )}
         </div>
 
+        {/* Ny booking */}
         <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
           <h2 style={{ marginTop: 0 }}>Ny booking</h2>
 
@@ -289,6 +424,73 @@ export default function App() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Mine bookinger */}
+      <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12, marginTop: 18 }}>
+        <h2 style={{ marginTop: 0 }}>Mine bookinger</h2>
+
+        {!isLoggedIn ? (
+          <p style={{ opacity: 0.7 }}>Logg inn for å se dine bookinger.</p>
+        ) : myBookings.length === 0 ? (
+          <p style={{ opacity: 0.7 }}>Ingen bookinger ennå.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {myBookings.map((b) => {
+              const start = formatLocal(b.start);
+              const end = formatLocal(b.end);
+
+              const isCancelled = b.status === "Cancelled";
+              const resourceName = resourceNameById.get(b.resourceId) ?? b.resourceId;
+
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    padding: 12,
+                    border: "1px solid #eee",
+                    borderRadius: 10,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700 }}>
+                      {start} → {end}
+                    </div>
+
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>
+                      Ressurs: <strong>{resourceName}</strong>
+                    </div>
+
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>
+                      Status:{" "}
+                      <span style={{ fontWeight: 700 }}>
+                        {b.status}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 12, opacity: 0.6 }}>
+                      ID: {b.id}
+                    </div>
+                  </div>
+
+                  <div>
+                    <button
+                      onClick={() => handleCancelBooking(b.id)}
+                      disabled={loading || isCancelled}
+                      title={isCancelled ? "Allerede kansellert" : "Kanseller booking"}
+                    >
+                      Kanseller
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
